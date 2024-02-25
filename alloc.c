@@ -1,5 +1,6 @@
-#include <assert.h>
 #include <stdio.h>
+#include <assert.h>
+
 #define HEAP_CAPACITY 64000
 
 // our heap
