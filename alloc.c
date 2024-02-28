@@ -4,6 +4,7 @@
 
 #define HEAP_CAPACITY 64000
 #define HEAP_ALLOCATED_CAPACITY 1024
+#define HEAP_FREED_CAPACITY 1024
 
 //keep track of the size of the heap chunk
 typedef struct 
@@ -11,7 +12,45 @@ typedef struct
     void *start;
     size_t size;
 
-}HeapChunk;
+}Chunk;
+
+//using a separate data structure for our metadata
+typedef struct 
+{
+    size_t count;
+    Chunk chunks[HEAP_ALLOCATED_CAPACITY];
+}ChunkList;
+
+//defining functions for our new ds
+//dump
+
+void chunkListDump (const ChunkList *list)
+{
+    printf("Allocated Chunks: %zu\n", list->count);
+    //iterating through the metadata table of allocated chunks and dumping them
+    for(size_t i = 0; i < list->count; i++)
+    {
+        printf(" Start: %p, Size: %zu\n", list->chunks[i].start, list->chunks[i].size);
+    }
+}
+//find
+int chunkListFind (const ChunkList *list, void *ptr)
+{
+    assert(false && " CHunkListFind: Not implemented yet");
+    return -1;
+}
+
+//remove
+void chunkListRemove(ChunkList *list, size_t insert)
+{
+    assert(false && " CHunkListremove: Not implemented yet");
+}
+
+//insert
+void chunkListInsert (ChunkList *list, void *ptr, size_t size)
+{
+    assert(false && " CHunkListAdd: Not implemented yet");
+}
 
 // our heap
 char heap[HEAP_CAPACITY] = {0};
@@ -19,18 +58,26 @@ size_t heapSize = 0;
 
 //metadata for our allocated heap chunks
 //to keep track of the allocated memory, a similar thing might be required for the free memory too:)
-HeapChunk heapAllocated[HEAP_ALLOCATED_CAPACITY] = {0};
-size_t heapAllocatedSize = 0;
+//the table is used to keep track of the start of each chunk and their sizes
+ChunkList allocatedChunks = {0};
+ChunkList freedChunks = {0};
 
 void *heapAllocate (size_t size)
 {
+    //taking inspo from malloc that when size is 0,
+    //it either returns a NULL value or a unique pointer which,
+    //can be passed to free
+    if (size == 0)
+        return NULL;
+    
     assert(heapSize + size <= HEAP_CAPACITY);
 
     // starting of a free heap block
-    void *result = heap + heapSize;
+    void *ptr = heap + heapSize;
     heapSize += size;
-    return result;
-
+    
+    chunkListInsert(&allocatedChunks, ptr, size);
+    return ptr;
 }
 
 void heapFree (void *ptr)
@@ -51,13 +98,15 @@ void heapCollect ()
 
 int main (void)
 {
-    char *root = heapAllocate(26);
-    for (int i = 0; i < 26; i++)
+    for (int i = 0; i < 100; i++)
     {
-        root[i] = 'A' + i;
+        void *p = heapAllocate(i);
+        if (i%2 == 0)
+            heapFree(p);
     }
 
-    heapFree(root);
+    //chunkListDump();
+    //heapFree(root1);
 
     return 0;
 }
