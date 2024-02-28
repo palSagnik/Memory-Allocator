@@ -4,10 +4,9 @@
 #include <stdbool.h>
 
 #define HEAP_CAPACITY 64000
-#define HEAP_ALLOCATED_CAPACITY 1024
-#define HEAP_FREED_CAPACITY 1024
+#define CHUNK_LIST_CAP 1024
 
-#define TODO() \
+#define TODO \
     do {\
         fprintf(stderr , "%s:%d %s is not implemented yet\n", \
                 __FILE__, __LINE__, __func__); \
@@ -23,10 +22,12 @@ typedef struct
 }Chunk;
 
 //using a separate data structure for our metadata
+//this will be a sorted array
+//and we will be adding the new chunks at the end of memory
 typedef struct 
 {
     size_t count;
-    Chunk chunks[HEAP_ALLOCATED_CAPACITY];
+    Chunk chunks[CHUNK_LIST_CAP];
 }ChunkList;
 
 //defining functions for our new ds
@@ -44,20 +45,36 @@ void chunkListDump (const ChunkList *list)
 //find
 int chunkListFind (const ChunkList *list, void *ptr)
 {
-    TODO();
-    return -1;
+    //binary search
+    //using bsearch()
+    
 }
 
 //remove
-void chunkListRemove(ChunkList *list, size_t insert)
+void chunkListRemove(ChunkList *list, size_t index)
 {
-    TODO();
+    TODO;
 }
 
 //insert
-void chunkListInsert (ChunkList *list, void *ptr, size_t size)
+void chunkListInsert (ChunkList *list, void *start, size_t size)
 {
-    TODO();
+    assert(list->count < CHUNK_LIST_CAP);
+    list->chunks[list->count].start = start;
+    list->chunks[list->count].size = size;
+
+    //sorting our chunks using bubble sort
+    size_t i = list->count;
+    while(list->chunks[i].start < list->chunks[i - 1].start && i != 0)
+    {
+        const Chunk t = list->chunks[i];
+        list->chunks[i] = list->chunks[i - 1];
+        list->chunks[i - 1] = t;
+
+        i++;
+    }
+
+    list->count++;
 }
 
 // our heap
@@ -65,7 +82,7 @@ char heap[HEAP_CAPACITY] = {0};
 size_t heapSize = 0;
 
 //metadata for our allocated heap chunks
-//to keep track of the allocated memory, a similar thing might be required for the free memory too:)
+//to keep track of the allocated memory
 //the table is used to keep track of the start of each chunk and their sizes
 ChunkList allocatedChunks = {0};
 ChunkList freedChunks = {0};
@@ -90,8 +107,13 @@ void *heapAllocate (size_t size)
 
 void heapFree (void *ptr)
 {
-    (void) ptr;
-    TODO();
+    //find the index, move it to the freed chunks table, remove it from the allocated chunks table
+    const int index = chunkListFind(&allocatedChunks, ptr);
+    assert(index >= 0);
+
+    chunkListInsert(&freedChunks, allocatedChunks.chunks[index].start, allocatedChunks.chunks[index].size);
+    chunkListRemove(&allocatedChunks, (size_t) index);
+
 }
 
 // slide over the heap with a window of 8 bytes
@@ -113,7 +135,7 @@ int main (void)
             heapFree(p);
     }
 
-    //chunkListDump();
+    chunkListDump(&allocatedChunks);
     //heapFree(root1);
 
     return 0;
