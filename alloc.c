@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
 #include <stdbool.h>
 
 #define HEAP_CAPACITY 64000
@@ -43,20 +44,20 @@ void chunkListDump (const ChunkList *list)
 //find
 int chunkListFind (const ChunkList *list, void *ptr)
 {
-    assert(false && " CHunkListFind: Not implemented yet");
+    TODO();
     return -1;
 }
 
 //remove
 void chunkListRemove(ChunkList *list, size_t insert)
 {
-    assert(false && " CHunkListremove: Not implemented yet");
+    TODO();
 }
 
 //insert
 void chunkListInsert (ChunkList *list, void *ptr, size_t size)
 {
-    assert(false && " CHunkListAdd: Not implemented yet");
+    TODO();
 }
 
 // our heap
@@ -90,7 +91,7 @@ void *heapAllocate (size_t size)
 void heapFree (void *ptr)
 {
     (void) ptr;
-    assert(false && "heapFree: Not implemented");
+    TODO();
 }
 
 // slide over the heap with a window of 8 bytes
