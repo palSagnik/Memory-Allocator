@@ -6,6 +6,13 @@
 #define HEAP_ALLOCATED_CAPACITY 1024
 #define HEAP_FREED_CAPACITY 1024
 
+#define TODO() \
+    do {\
+        fprintf(stderr , "%s:%d %s is not implemented yet\n", \
+                __FILE__, __LINE__, __func__); \
+        abort(); \
+    } while(0);
+
 //keep track of the size of the heap chunk
 typedef struct 
 {
