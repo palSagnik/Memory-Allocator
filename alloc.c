@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#define HEAP_CAPACITY 64000
+#define HEAP_CAPACITY 640000
 #define CHUNK_LIST_CAP 1024
 
 #define TODO                                                 \
@@ -32,65 +32,9 @@ typedef struct
 } ChunkList;
 
 // defining functions for our new ds
-// dump
-
-void chunkListDump(const ChunkList *list)
-{
-    printf("Allocated Chunks: %zu\n", list->count);
-    // iterating through the metadata table of allocated chunks and dumping them
-    for (size_t i = 0; i < list->count; i++)
-    {
-        printf(" Start: %s, Size: %zu\n", list->chunks[i].start, list->chunks[i].size);
-    }
-}
-
-// compare function for bsearch()
-// weird compar function semantics
-int chunkStartCompar(const void *a, const void *b)
-{
-    const Chunk *aChunk = a;
-    const Chunk *bChunk = b;
-
-    return aChunk->start - bChunk->start;
-}
-
-// find
-int chunkListFind(const ChunkList *list, void *ptr)
-{
-    // binary search
-    // using bsearch()
-    Chunk key = {
-        .start = ptr};
-
-    Chunk *result = bsearch(&key, list->chunks,
-                            list->count, sizeof(list->chunks[0]),
-                            chunkStartCompar);
-
-    if (result != 0)
-    {
-        // base pointer < chunk pointer
-        assert(list->chunks <= result);
-        return (result - list->chunks) / sizeof(list->chunks[0]);
-    }
-    else
-    {
-        return -1;
-    }
-}
-
-// remove
-// O(list->count)
-void chunkListRemove(ChunkList *list, size_t index)
-{
-    assert(index < list->count);
-    for (size_t i = index; i < list->count - 1; i++)
-        list->chunks[i] = list->chunks[i + 1];
-
-    list->count--;
-}
 
 // insert
-//O(list->count)
+// O(list->count)
 void chunkListInsert(ChunkList *list, void *start, size_t size)
 {
     assert(list->count < CHUNK_LIST_CAP);
@@ -105,38 +49,120 @@ void chunkListInsert(ChunkList *list, void *start, size_t size)
         list->chunks[i] = list->chunks[i - 1];
         list->chunks[i - 1] = t;
 
-        i++;
+        i--;
     }
 
-    list->count++;
+    list->count += 1;
+}
+
+//merge
+//merging the fragmented mem chunks to get a bigger chunk for better deallocation
+void chunkListMerge(ChunkList *dst, const ChunkList *src)
+{
+    dst->count = 0;
+    for (size_t i = 0; i < src->count; i++)
+    {
+        const Chunk chunk = src->chunks[i];
+
+        //check if dst not empty
+        if (dst->count > 0)
+        {
+            Chunk *topChunk = &dst->chunks[dst->count - 1];
+            
+            //check if this is mergeable
+            if (topChunk->start + topChunk->size ==  chunk.start)
+            {
+                //merge
+                topChunk->size += chunk.size;
+            }
+            else
+            {
+                //append to dst
+                chunkListInsert(dst, chunk.start, chunk.size);
+            }
+        }
+        else
+        {
+            chunkListInsert(dst, chunk.start, chunk.size);
+        }
+    }
+
+}
+// dump
+void chunkListDump(const ChunkList *list)
+{
+    printf("Chunks (%zu): \n", list->count);
+    // iterating through the metadata table of allocated chunks and dumping them
+    for (size_t i = 0; i < list->count; i++)
+    {
+        printf(" Start: %p, Size: %zu\n", list->chunks[i].start, list->chunks[i].size);
+    }
+}
+
+// find
+int chunkListFind(const ChunkList *list, void *ptr)
+{
+    for (size_t i = 0; i < list->count; i++)
+    {
+        if (list->chunks[i].start == ptr)
+            return i;
+    }
+
+    return -1;
+}
+
+// remove
+// O(list->count)
+void chunkListRemove(ChunkList *list, size_t index)
+{
+    assert(index < list->count);
+    for (size_t i = index; i < list->count - 1; i++)
+        list->chunks[i] = list->chunks[i + 1];
+
+    list->count -= 1;
 }
 
 // our heap
+// we removed the notion of heapSize because the allocate function was not reusing the memory
 char heap[HEAP_CAPACITY] = {0};
-size_t heapSize = 0;
 
 // metadata for our allocated heap chunks
 // to keep track of the allocated memory
 // the table is used to keep track of the start of each chunk and their sizes
 ChunkList allocatedChunks = {0};
-ChunkList freedChunks = {0};
+ChunkList freedChunks = {
+    .count = 1,
+    .chunks = {
+        [0] = {.start = heap, .size = sizeof(heap)}}};
+ChunkList tmpChunks = {0};
 
 void *heapAllocate(size_t size)
 {
-    // taking inspo from malloc that when size is 0,
-    // it either returns a NULL value or a unique pointer which,
-    // can be passed to free
-    if (size == 0)
-        return NULL;
+    if (size > 0)
+    {
+        chunkListMerge(&tmpChunks, &freedChunks);
+        freedChunks = tmpChunks;
 
-    assert(heapSize + size <= HEAP_CAPACITY);
+        for (size_t i = 0; i < freedChunks.count; ++i)
+        {
+            const Chunk chunk = freedChunks.chunks[i];
+            if (chunk.size >= size)
+            {
+                chunkListRemove(&freedChunks, i);
 
-    // starting of a free heap block
-    void *ptr = heap + heapSize;
-    heapSize += size;
+                const size_t tailSize = chunk.size - size;
+                chunkListInsert(&allocatedChunks, chunk.start, size);
 
-    chunkListInsert(&allocatedChunks, ptr, size);
-    return ptr;
+                if (tailSize > 0)
+                {
+                    chunkListInsert(&freedChunks, chunk.start + size, tailSize);
+                }
+
+                return chunk.start;
+            }
+        }
+    }
+    return NULL;
 }
 
 void heapFree(void *ptr)
@@ -144,9 +170,8 @@ void heapFree(void *ptr)
     if (ptr != NULL)
     {
         // find the index, move it to the freed chunks table, remove it from the allocated chunks table
-        const int index = chunkListFind(&allocatedChunks, ptr);
+        int index = chunkListFind(&allocatedChunks, ptr);
         assert(index >= 0);
-
         chunkListInsert(&freedChunks, allocatedChunks.chunks[index].start, allocatedChunks.chunks[index].size);
         chunkListRemove(&allocatedChunks, (size_t)index);
     }
@@ -159,12 +184,12 @@ void heapFree(void *ptr)
 void heapCollect()
 {
     // this should scan for pointer to the stack as well
-    assert(false && "heapCollect: Not implemented");
+    TODO;
 }
 
 int main(void)
 {
-    for (int i = 0; i < 10; i++)
+    for (int i = 1; i < 10; i++)
     {
         void *p = heapAllocate(i);
         if (i % 2 == 0)
@@ -172,7 +197,7 @@ int main(void)
     }
 
     chunkListDump(&allocatedChunks);
-    // heapFree(root1);
+    chunkListDump(&freedChunks);
 
     return 0;
 }
